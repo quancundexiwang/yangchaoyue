@@ -1,7 +1,7 @@
 # coding:utf-8
 from wxpy import *
 # 导入wxpy模块的全部内容
-from apscheduler.schedulers.background import BlockingScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 import os
 import configparser
 from mysql_test import insert_to_sql,update_to_sql,read_from_sql
@@ -29,7 +29,9 @@ my_groups = bot.groups()
 # 微信登陆后，更新微信群列表（包括未保存到通讯录的群）
 my_group=my_groups.search("为解放威哥而战斗")[0]
 my_group.send("everybody，我是杨超越！")
-my_friend = bot.friends().search("老张")[0]
+my_friend = bot.friends().search("阿文儿")[0]
+# for i in range(len(my_friend)):
+#     print (my_friend[i].nick_name)
 # 从群中搜索朋友，但是没有send功能
 # my_friend = my_group.search(Member='成威威')
 my_friend.send("hello!")
@@ -37,6 +39,34 @@ my_friend.send("hello!")
 print (my_friend)
 
 my_group.update_group(members_details=True)
+
+
+def check_str(inform):
+    # 检查输入的参数的格式
+    # 0 代表输入的数字，1 代表输入的不是数字
+    isdigit = '0'
+    for f in range(1, 3):
+        try:
+            f = float(inform[f])
+        except ValueError:
+            isdigit = '1'
+            break
+    return isdigit
+
+
+# 定时任务
+def job_send():
+    my_group.send("i am still running! wow!")
+
+
+scheduler = BackgroundScheduler()
+scheduler.add_job(job_send, "cron", hour="*",  minute=0)
+try:
+    scheduler.start()
+except SystemExit:
+    print('exit')
+    exit()
+print("lalallalalallallalallal!")
 
 
 # 接收群消息
@@ -68,8 +98,13 @@ def print_msg(msg):
             order = msg.text.split(' ')
             for i in range(1, len(order)):
                 sql_check = "update runner_detail d set d.record_status = 2 where d.record_id = "+str(order[i])
-                update_to_sql(sql_check)
+                res = update_to_sql(sql_check)
                 print(sql_check)
+                # '0'为审核失败，检查输入的序号
+                if res == '0':
+                    my_friend.send("this record_id is illegal! please check this"+str(order[i]))
+                else:
+                    continue
             my_friend.send("审核了"+str(len(order)-1)+"条记录！")
         else:
             return
@@ -79,21 +114,27 @@ def print_msg(msg):
         print (msg.member.name)
         inf = msg.text.split('\u2005')[1:]
         inform = inf[0].split(' ') # inform: ['add', '5', '0530']
-        print(inform)
+
         # 添加跑步记录操作
         if inform[0].lower() == 'add':
-            sql1 = "select * from runner_members t where t.user_name = '"+msg.member.name+"'"
-            print (sql1)
-            uid = read_from_sql(sql1)['USER_ID'][0]
-            print(uid)
-            print(type(uid))
-            sql2 = 'select * from runner_target t where t.is_last = 1 and t.user_id = '+str(uid)
-            print(sql2)
-            tid = read_from_sql(sql2)['TARGET_ID'][0]
-            sql = 'insert into runner_detail (USER_ID,TARGET_ID,RUN_DISTANCE,RUN_SPEED) values ('+str(uid)+','+str(tid)+',' + inform[1]+','+inform[2]+')'
-            print (sql)
-            insert_to_sql(sql)
-            my_group.send("添加成功！")
+            print(inform)
+            isdigit = check_str(inform)
+            if isdigit == '1':
+                my_group.send("输入的参数不是数字！格式如：'add 5 0630'")
+            else:
+                sql1 = "select * from runner_members t where t.user_name = '"+msg.member.name+"'"
+                print (sql1)
+                uid = read_from_sql(sql1)['USER_ID'][0]
+                print(uid)
+                print(type(uid))
+                sql2 = 'select * from runner_target t where t.is_last = 1 and t.user_id = '+str(uid)
+                print(sql2)
+                tid = read_from_sql(sql2)['TARGET_ID'][0]
+                sql = 'insert into runner_detail (USER_ID,TARGET_ID,RUN_DISTANCE,RUN_SPEED) values ('+str(uid)+','+str(tid)+',' + inform[1]+','+inform[2]+')'
+                print (sql)
+                insert_to_sql(sql)
+                my_group.send("添加成功！")
+
         # 查看本群本周跑步完成情况
         elif inform[0].lower() == 'vi':
             sql_vi = "select m.USER_NAME, d.RUN_DISTANCE, d.DATE_CREATED from runner_detail d inner join " \
