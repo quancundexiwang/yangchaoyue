@@ -1,6 +1,7 @@
 # coding:utf-8
 import pymysql
 import pandas as pd
+import datetime
 
 
 # # 打开数据库连接
@@ -46,7 +47,8 @@ def update_to_sql(sql):
 
     # 使用 cursor() 方法创建一个游标对象 cursor
     cursor = db.cursor()
-
+    # 若执行成功，返回1，失败，返回0
+    r = '1'
     try:
         cursor.execute(sql)
         db.commit()
@@ -55,7 +57,9 @@ def update_to_sql(sql):
     except Exception as e:
         # 回滚
         db.rollback()
+        r = '0'
     cursor.close()
+    return r
 
 
 def read_from_sql(sql):
@@ -78,6 +82,14 @@ def read_from_sql(sql):
     cursor.close()
     return df
 
+
+def this_mon():
+    monday = datetime.date.today()
+    one_day = datetime.timedelta(days=1)
+    while monday.weekday() != 0:
+        monday -= one_day
+    mon = monday.strftime("%Y%m%d")
+    return mon
 #
 # # 打开数据库连接
 # db = pymysql.connect("www.vvcheng.com","ycy","paic1234","runnerdb" )
