@@ -69,10 +69,20 @@ def target_ini():
     detail['DISTANCE_ACTUALLY'] = [round(x, 2) for x in detail['DISTANCE_ACTUALLY']]
     print(detail)
     detail.rename(columns={'USER_NAME': '用户', 'DISTANCE_TARGET': '目标距离','DISTANCE_ACTUALLY':'实际距离', 'RUN_WEEK': '跑步周'}, inplace=True)
-    if detail.empty:
-        my_group.send("新的一周开始啦！")
+
+    # 上周观众席名单
+    sql_viewer = "select m.USER_NAME from runner_members m where m.RUN_STATUS = 2"
+    viewer = read_from_sql(sql_viewer)
+    m = ''
+    for i in range(len(viewer)):
+        m = m + str(viewer['USER_NAME'][i])+','
+
+    if viewer.empty:
+        my_group.send(detail)
+        my_group.send("上周全员参与跑步！")
     else:
         my_group.send(detail)
+        my_group.send("上周免跑名单为:" + m)
 
     # 在新的一周将所有成员改为跑步状态，除开状态为3的成员!
     sql_us = "update runner_members m set m.RUN_STATUS = 1 where m.RUN_STATUS = 2;"
@@ -101,8 +111,18 @@ def check_remind():
 
 
 def comp_information():
+    # 本周观众席名单
+    sql_viewer = "select m.USER_NAME from runner_members m where m.RUN_STATUS = 2"
+    viewer = read_from_sql(sql_viewer)
+    m = ''
+    for i in range(len(viewer)):
+        m = m + str(viewer['USER_NAME'][i]) + ','
+    if len(viewer) == 0:
+        pass
+    else:
+        my_group.send("本周免跑名单为:" + m)
+
     # 将本周已完成情况发群里
-    my_group.send("本周跑步完成情况如下：")
     sql_vi = "select m.USER_NAME, t.DISTANCE_TARGET, t.DISTANCE_ACTUALLY, t.RUN_WEEK from runner_target t  " \
              "inner join runner_members m on t.user_id = m.user_id where t.is_last=1 and m.RUN_STATUS = 1;"
     detail = read_from_sql(sql_vi)
@@ -111,7 +131,11 @@ def comp_information():
     detail.rename(
         columns={'USER_NAME': '用户', 'DISTANCE_TARGET': '目标距离', 'DISTANCE_ACTUALLY': '实际距离', 'RUN_WEEK': '跑步周'},
         inplace=True)
-    my_group.send(detail)
+    if detail.empty:
+        my_group.send("到现在还没人跑呀！快去跑步啦！")
+    else:
+        my_group.send("本周跑步完成情况如下：")
+        my_group.send(detail)
 
 
 scheduler = BackgroundScheduler()
@@ -153,7 +177,10 @@ def print_msg(msg):
             uncheck_re.rename(columns={'RECORD_ID': '记录id', 'USER_NAME': '用户', 'RUN_DISTANCE': '距离',
                                        'RUN_SPEED': '配速', 'DATE_CREATED': '记录时间', 'RECORD_STATUS':'审核状态'},
                               inplace=True)
-            my_friend.send(uncheck_re)
+            if uncheck_re.empty:
+                my_friend.send("没有未审核记录哦！")
+            else:
+                my_friend.send(uncheck_re)
 
         # 管理员审核通过跑步记录
         elif msg.text.lower().split(' ')[0] == 'pass':
