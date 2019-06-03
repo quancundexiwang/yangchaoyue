@@ -54,16 +54,17 @@ def check_str(inform):
     return isdigit
 
 
-# 定时任务
+# 定时任务---心跳
 def job_send():
     my_friend.send("i am still running! wow!")
 
 
-# 每周一早上更新跑步目标表
+# 定时任务---每周一早上更新跑步目标表
 def target_ini():
     # 将上周情况发群里
+    my_group.send("上周跑步完成情况如下：")
     sql_vi = "select m.USER_NAME, t.DISTANCE_TARGET, t.DISTANCE_ACTUALLY, t.RUN_WEEK from runner_target t  " \
-             "inner join runner_members m on t.user_id = m.user_id where t.is_last=1;"
+             "inner join runner_members m on t.user_id = m.user_id where t.is_last=1 and m.RUN_STATUS = 1;"
     detail = read_from_sql(sql_vi)
     detail['DISTANCE_ACTUALLY'] = [round(x, 2) for x in detail['DISTANCE_ACTUALLY']]
     print(detail)
@@ -72,6 +73,10 @@ def target_ini():
         my_group.send("新的一周开始啦！")
     else:
         my_group.send(detail)
+
+    # 在新的一周将所有成员改为跑步状态，除开状态为3的成员!
+    sql_us = "update runner_members m set m.RUN_STATUS = 1 where m.RUN_STATUS = 2;"
+    update_to_sql(sql_us)
 
     # 将目标表的是否为当前周字段改为0
     sql_uptar = "update runner_target t set t.IS_LAST = 0"
@@ -87,9 +92,33 @@ def target_ini():
         insert_to_sql(sql_int)
 
 
+# 定时任务---每天下午6点，给管理员发未审核提示，给群里发本周完成情况。
+def check_remind():
+    # 给管理员发还有几条记录未审核。
+    sql_uncheck = "select * from runner_detail d where d.RECORD_STATUS=1;"
+    count_uncheck = read_from_sql(sql_uncheck)
+    my_friend.send(str(len(count_uncheck))+"条记录未审核，请审核！")
+
+
+def comp_information():
+    # 将本周已完成情况发群里
+    my_group.send("本周跑步完成情况如下：")
+    sql_vi = "select m.USER_NAME, t.DISTANCE_TARGET, t.DISTANCE_ACTUALLY, t.RUN_WEEK from runner_target t  " \
+             "inner join runner_members m on t.user_id = m.user_id where t.is_last=1 and m.RUN_STATUS = 1;"
+    detail = read_from_sql(sql_vi)
+    detail['DISTANCE_ACTUALLY'] = [round(x, 2) for x in detail['DISTANCE_ACTUALLY']]
+    print(detail)
+    detail.rename(
+        columns={'USER_NAME': '用户', 'DISTANCE_TARGET': '目标距离', 'DISTANCE_ACTUALLY': '实际距离', 'RUN_WEEK': '跑步周'},
+        inplace=True)
+    my_group.send(detail)
+
+
 scheduler = BackgroundScheduler()
 scheduler.add_job(job_send, "cron", hour="*",  minute=0)
-scheduler.add_job(target_ini, "cron", day_of_week='thu', hour=22, minute=2)
+scheduler.add_job(target_ini, "cron", day_of_week='mon', hour=0, minute=0)
+scheduler.add_job(check_remind, "cron", hour="12,21",  minute=0)
+scheduler.add_job(comp_information, "cron", hour="18",  minute=0)
 try:
     scheduler.start()
 except SystemExit:
@@ -125,6 +154,7 @@ def print_msg(msg):
                                        'RUN_SPEED': '配速', 'DATE_CREATED': '记录时间', 'RECORD_STATUS':'审核状态'},
                               inplace=True)
             my_friend.send(uncheck_re)
+
         # 管理员审核通过跑步记录
         elif msg.text.lower().split(' ')[0] == 'pass':
             print(msg.text)
@@ -166,11 +196,12 @@ def print_msg(msg):
 
             my_friend.send("审核了"+str(m)+"条记录！")
 
+        # 管理员审核记录不通过
         elif msg.text.lower().split(' ')[0] == 'np':
             print(msg.text)
             order = msg.text.split(' ')
             for i in range(1, len(order)):
-                sql_check = "update runner_detail d set d.record_status = 2 where d.record_id = " + str(order[i])
+                sql_check = "update runner_detail d set d.record_status = 3 where d.record_id = " + str(order[i])
                 res = update_to_sql(sql_check)
                 print(sql_check)
                 # '0'为审核失败，检查输入的序号
@@ -192,8 +223,35 @@ def print_msg(msg):
                     my_group.send("以上记录管理员审核未通过")
             my_friend.send(str(m) + "条记录审核不通过！")
 
+        # 管理员查看本周用户状态
+        elif msg.text.lower() == 'us':
+            sql_us = "select m.USER_ID,m.USER_NAME,m.RUN_STATUS from runner_members m;"
+            run_status = read_from_sql(sql_us)
+            run_status.rename(columns={'USER_ID': '用户id', 'USER_NAME': '用户', 'RUN_STATUS': '状态'},
+                              inplace=True)
+            my_friend.send(run_status)
+            my_friend.send("其中，1:跑步状态，2:临时观众，3:长期观众")
+
+        # 管理员申请将谁加入白名单
+        elif msg.text.lower().split(' ')[0] == 'addw':
+            order = msg.text.split(' ')
+            for i in range(1, len(order)):
+                sql_check = "update runner_members m set m.RUN_STATUS = 2 where m.USER_ID = " + str(order[i])
+                res = update_to_sql(sql_check)
+                print(sql_check)
+                # '0'为审核失败，检查输入的序号
+                if res == '0':
+                    my_friend.send("该用户不存在! 请检查！" + str(order[i]))
+                else:
+                    sql_aw = "select m.USER_NAME from runner_members m where m.USER_ID = " + str(order[i])
+                    user = read_from_sql(sql_aw)
+                    my_friend.send("该用户"+str(user['USER_NAME'][0])+"本周被列入临时观众席！")
+                    my_group.send("该用户" + str(user['USER_NAME'][0]) + "本周被列入临时观众席！")
+
         else:
-            return
+            my_friend.send("无法识别输入的指令！")
+            my_friend.send("查看未审核记录列表请输入:uncheck"+'\n'+"通过某条记录请输入:pass 记录id"+'\n'
+                            + "不通过某条记录请输入:np 记录id" + '\n' + "查看群成员本周状态请输入：us"+ '\n' + "添加成员到白名单：addw 用户id")
     else:
         print(msg.text)
         print (msg.member)
@@ -206,11 +264,9 @@ def print_msg(msg):
             print(inform)
             print (type(inform[1]))
             isdigit = check_str(inform)
-            print (isdigit)
-            # print(float(inform[1]) < 1)
             # 若输入不是数字或输入数字异常或参数输入过多
             if len(inform) <= 2:
-                if (isdigit == '1') or (float(inform[1]) > 100) or (float(inform[1]) < 1):
+                if (isdigit == '1') or (float(inform[1]) > 100) or (float(inform[1]) < 3):
                     my_group.send("请检查输入格式！格式如：'add 5 0630'")
                 else:
                     sql_user = "select * from runner_members t where t.user_name = '" + msg.member.name + "'"
@@ -227,9 +283,10 @@ def print_msg(msg):
                     print (sql)
                     insert_to_sql(sql)
                     my_group.send("添加成功！请联系管理员审核")
+                    my_friend.send("新增一条记录，请审核！")
 
             elif len(inform) >= 3:
-                if (isdigit == '1')or (float(inform[1]) > 100) or (len(inform) > 3) or (float(inform[1]) < 1) or (float(inform[2]) < 1):
+                if (isdigit == '1')or (float(inform[1]) > 100) or (len(inform) > 3) or (float(inform[1]) < 3) or (float(inform[2]) < 1):
                     my_group.send("请检查输入格式！格式如：'add 5 0630'")
                 else:
                     sql_user = "select * from runner_members t where t.user_name = '"+msg.member.name+"'"
@@ -243,7 +300,8 @@ def print_msg(msg):
                     sql = 'insert into runner_detail (USER_ID,TARGET_ID,RUN_DISTANCE,RUN_SPEED) values ('+str(uid)+','+str(tid)+',' + inform[1]+','+inform[2]+')'
                     print (sql)
                     insert_to_sql(sql)
-                    my_group.send("添加成功！")
+                    my_group.send("添加成功！请联系管理员审核")
+                    my_friend.send("新增一条记录，请审核！")
 
         # 查看本群本周跑步完成情况
         elif inform[0].lower() == 'vi':
