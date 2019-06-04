@@ -210,7 +210,8 @@ def print_msg(msg):
 
                     # 审核通过同时更新目标记录表的实际跑步距离
                     tar_update = "update runner_target t set t.distance_actually = t.distance_actually " \
-                                 "+"+str(detail_pass['距离'][0])+" where t.is_last = 1 and t.user_id = "+str(detail['USER_ID'][0])
+                                 "+"+str(detail_pass['距离'][0])+" where t.target_id = " \
+                                 "(select d.target_id from runner_detail d where d.record_id = "+str(order[i])
                     print(tar_update)
                     update_to_sql(tar_update)
 
