@@ -164,12 +164,12 @@ def print_msg(msg):
     # 如果是管理员私聊，则执行以下操作
     elif isinstance(msg.chat, Group) is False:
         print(msg.text)
-        # 审核跑步记录
-        if msg.text.lower() == 'uncheck':
+        # 审核跑步记录 查看本周记录
+        if msg.text.lower() == 're':
             sql_uncheck = "select d.RECORD_ID, m.USER_NAME, d.RUN_DISTANCE, d.RUN_SPEED," \
                           "date_format(d.DATE_CREATED,'%m-%d %H:%i') as DATE_CREATED , d.RECORD_STATUS " \
                           "from runner_detail d inner join runner_target t on d.target_id = t.target_id " \
-                          "inner join runner_members m on t.user_id = m.user_id and t.is_last=1 where d.record_status=1;"
+                          "inner join runner_members m on t.user_id = m.user_id and t.is_last=1 ;"
             uncheck_re = read_from_sql(sql_uncheck)
             uncheck_re['RUN_DISTANCE'] = [round(x, 2) for x in uncheck_re['RUN_DISTANCE']]
             uncheck_re['RUN_SPEED'].fillna('---', inplace=True)
@@ -208,19 +208,19 @@ def print_msg(msg):
                     my_group.send(detail_pass)
                     my_group.send("以上记录已经被审核通过")
 
-                    # 审核通过同时更新目标记录表的实际跑步距离
-                    tar_update = "update runner_target t set t.distance_actually = t.distance_actually " \
-                                 "+"+str(detail_pass['距离'][0])+" where t.target_id = " \
-                                 "(select d.target_id from runner_detail d where d.record_id = "+str(order[i])
-                    print(tar_update)
-                    update_to_sql(tar_update)
-
-                    # 检查是否需要修改完成状态
-                    comp_update = "update runner_target t set t.completed_status = 1 where t.is_last = 1 and " \
-                                  "t.completed_status = 0 and t.distance_actually >= t.distance_target " \
-                                  "and t.user_id = "+str(detail['USER_ID'][0])
-                    print(comp_update)
-                    update_to_sql(comp_update)
+                    # # 审核通过同时更新目标记录表的实际跑步距离
+                    # tar_update = "update runner_target t set t.distance_actually = t.distance_actually " \
+                    #              "+"+str(detail_pass['距离'][0])+" where t.target_id = " \
+                    #              "(select d.target_id from runner_detail d where d.record_id = "+str(order[i])
+                    # print(tar_update)
+                    # update_to_sql(tar_update)
+                    #
+                    # # 检查是否需要修改完成状态
+                    # comp_update = "update runner_target t set t.completed_status = 1 where t.is_last = 1 and " \
+                    #               "t.completed_status = 0 and t.distance_actually >= t.distance_target " \
+                    #               "and t.user_id = "+str(detail['USER_ID'][0])
+                    # print(comp_update)
+                    # update_to_sql(comp_update)
 
             my_friend.send("审核了"+str(m)+"条记录！")
 
@@ -249,36 +249,50 @@ def print_msg(msg):
                         'USER_NAME': '用户', 'RUN_DISTANCE': '距离', 'DATE_CREATED': '记录时间'})
                     my_group.send(detail_pass)
                     my_group.send("以上记录管理员审核未通过")
+
+                    # 审核通过同时更新目标记录表的实际跑步距离
+                    tar_update = "update runner_target t set t.distance_actually = t.distance_actually " \
+                                 "-"+str(detail_pass['距离'][0])+" where t.target_id = " \
+                                 "(select d.target_id from runner_detail d where d.record_id = "+str(order[i])
+                    print(tar_update)
+                    update_to_sql(tar_update)
+
+                    # 检查是否需要修改完成状态
+                    comp_update = "update runner_target t set t.completed_status = 1 where t.is_last = 1 and " \
+                                  "t.completed_status = 0 and t.distance_actually >= t.distance_target " \
+                                  "and t.user_id = "+str(detail['USER_ID'][0])
+                    print(comp_update)
+                    update_to_sql(comp_update)
             my_friend.send(str(m) + "条记录审核不通过！")
 
-        # 管理员查看本周用户状态
-        elif msg.text.lower() == 'us':
-            sql_us = "select m.USER_ID,m.USER_NAME,m.RUN_STATUS from runner_members m;"
-            run_status = read_from_sql(sql_us)
-            run_status.rename(columns={'USER_ID': '用户id', 'USER_NAME': '用户', 'RUN_STATUS': '状态'},
-                              inplace=True)
-            my_friend.send(run_status)
-            my_friend.send("其中，1:跑步状态，2:临时观众，3:长期观众")
-
-        # 管理员申请将谁加入白名单
-        elif msg.text.lower().split(' ')[0] == 'addw':
-            order = msg.text.split(' ')
-            for i in range(1, len(order)):
-                sql_check = "update runner_members m set m.RUN_STATUS = 2 where m.USER_ID = " + str(order[i])
-                res = update_to_sql(sql_check)
-                print(sql_check)
-                # '0'为审核失败，检查输入的序号
-                if res == '0':
-                    my_friend.send("该用户不存在! 请检查！" + str(order[i]))
-                else:
-                    sql_aw = "select m.USER_NAME from runner_members m where m.USER_ID = " + str(order[i])
-                    user = read_from_sql(sql_aw)
-                    my_friend.send("该用户"+str(user['USER_NAME'][0])+"本周被列入临时观众席！")
-                    my_group.send("该用户" + str(user['USER_NAME'][0]) + "本周被列入临时观众席！")
+        # # 管理员查看本周用户状态
+        # elif msg.text.lower() == 'us':
+        #     sql_us = "select m.USER_ID,m.USER_NAME,m.RUN_STATUS from runner_members m;"
+        #     run_status = read_from_sql(sql_us)
+        #     run_status.rename(columns={'USER_ID': '用户id', 'USER_NAME': '用户', 'RUN_STATUS': '状态'},
+        #                       inplace=True)
+        #     my_friend.send(run_status)
+        #     my_friend.send("其中，1:跑步状态，2:临时观众，3:长期观众")
+        #
+        # # 管理员申请将谁加入白名单
+        # elif msg.text.lower().split(' ')[0] == 'addw':
+        #     order = msg.text.split(' ')
+        #     for i in range(1, len(order)):
+        #         sql_check = "update runner_members m set m.RUN_STATUS = 2 where m.USER_ID = " + str(order[i])
+        #         res = update_to_sql(sql_check)
+        #         print(sql_check)
+        #         # '0'为审核失败，检查输入的序号
+        #         if res == '0':
+        #             my_friend.send("该用户不存在! 请检查！" + str(order[i]))
+        #         else:
+        #             sql_aw = "select m.USER_NAME from runner_members m where m.USER_ID = " + str(order[i])
+        #             user = read_from_sql(sql_aw)
+        #             my_friend.send("该用户"+str(user['USER_NAME'][0])+"本周被列入临时观众席！")
+        #             my_group.send("该用户" + str(user['USER_NAME'][0]) + "本周被列入临时观众席！")
 
         else:
             my_friend.send("无法识别输入的指令！")
-            my_friend.send("查看未审核记录列表请输入:uncheck"+'\n'+"通过某条记录请输入:pass 记录id"+'\n'
+            my_friend.send("查看本周跑步记录列表请输入:re"+'\n'+"通过某条记录请输入:pass 记录id"+'\n'
                             + "不通过某条记录请输入:np 记录id" + '\n' + "查看群成员本周状态请输入：us"+ '\n' + "添加成员到白名单：addw 用户id")
     else:
         print(msg.text)
@@ -293,6 +307,7 @@ def print_msg(msg):
             print (type(inform[1]))
             isdigit = check_str(inform)
             # 若输入不是数字或输入数字异常或参数输入过多
+            # 当用户只输入公里数时
             if len(inform) <= 2:
                 if (isdigit == '1') or (float(inform[1]) > 100) or (float(inform[1]) < 3):
                     my_group.send("请检查输入格式！格式如：'add 5 0630'")
@@ -306,13 +321,27 @@ def print_msg(msg):
                     print(sql_target)
                     tid = read_from_sql(sql_target)['TARGET_ID'][0]
                     # 考虑只输入公里数的情况
-                    sql = 'insert into runner_detail (USER_ID,TARGET_ID,RUN_DISTANCE) values (' + str(
-                            uid) + ',' + str(tid) + ',' + inform[1] + ')'
+                    sql = 'insert into runner_detail (RECORD_STATUS,USER_ID,TARGET_ID,RUN_DISTANCE) values ("2",' + \
+                          str(uid) + ',' + str(tid) + ',' + inform[1] + ')'
                     print (sql)
                     insert_to_sql(sql)
-                    my_group.send("添加成功！请联系管理员审核")
-                    my_friend.send("新增一条记录，请审核！")
+                    my_group.send("添加成功！")
+                    # my_friend.send("新增一条记录，请审核！")
 
+                    # 审核通过同时更新目标记录表的实际跑步距离
+                    tar_update = "update runner_target t set t.distance_actually = t.distance_actually " \
+                                 "+" + str(inform[1]) + " where t.target_id = " + str(tid)
+                    print(tar_update)
+                    update_to_sql(tar_update)
+
+                    # 检查是否需要修改完成状态
+                    comp_update = "update runner_target t set t.completed_status = 1 where t.is_last = 1 and " \
+                                  "t.completed_status = 0 and t.distance_actually >= t.distance_target " \
+                                  "and t.user_id = " + str(uid)
+                    print(comp_update)
+                    update_to_sql(comp_update)
+
+            # 当用户输入公里数和配速时
             elif len(inform) >= 3:
                 if (isdigit == '1')or (float(inform[1]) > 100) or (len(inform) > 3) or (float(inform[1]) < 3) or (float(inform[2]) < 1):
                     my_group.send("请检查输入格式！格式如：'add 5 0630'")
@@ -325,11 +354,25 @@ def print_msg(msg):
                     sql_target = 'select * from runner_target t where t.is_last = 1 and t.user_id = '+str(uid)
                     print(sql_target)
                     tid = read_from_sql(sql_target)['TARGET_ID'][0]
-                    sql = 'insert into runner_detail (USER_ID,TARGET_ID,RUN_DISTANCE,RUN_SPEED) values ('+str(uid)+','+str(tid)+',' + inform[1]+','+inform[2]+')'
+                    sql = 'insert into runner_detail (RECORD_STATUS，USER_ID,TARGET_ID,RUN_DISTANCE,RUN_SPEED) ' \
+                          'values ("2",'+str(uid)+','+str(tid)+',' + inform[1]+','+inform[2]+')'
                     print (sql)
                     insert_to_sql(sql)
-                    my_group.send("添加成功！请联系管理员审核")
-                    my_friend.send("新增一条记录，请审核！")
+                    my_group.send("添加成功！")
+                    # my_friend.send("新增一条记录，请审核！")
+
+                    # 审核通过同时更新目标记录表的实际跑步距离
+                    tar_update = "update runner_target t set t.distance_actually = t.distance_actually " \
+                                 "+" + str(inform[1]) + " where t.target_id = " + str(tid)
+                    print(tar_update)
+                    update_to_sql(tar_update)
+
+                    # 检查是否需要修改完成状态
+                    comp_update = "update runner_target t set t.completed_status = 1 where t.is_last = 1 and " \
+                                  "t.completed_status = 0 and t.distance_actually >= t.distance_target " \
+                                  "and t.user_id = " + str(uid)
+                    print(comp_update)
+                    update_to_sql(comp_update)
 
         # 查看本群本周跑步完成情况
         elif inform[0].lower() == 'vi':
@@ -342,10 +385,38 @@ def print_msg(msg):
             detail['RUN_DISTANCE'] = [round(x, 2) for x in detail['RUN_DISTANCE']]
             print(detail)
             detail.rename(columns={'USER_NAME': '用户', 'RUN_DISTANCE': '距离', 'DATE_CREATED': '记录时间'}, inplace = True)
-            my_group.send(detail)
+            if detail.empty:
+                my_group.send("本周还没人跑步，赶紧去跑步啊！")
+            else:
+                my_group.send(detail)
+
+        # 查看本周用户状态
+        elif inform[0].lower() == 'us':
+            sql_us = "select m.USER_ID,m.USER_NAME,m.RUN_STATUS from runner_members m;"
+            run_status = read_from_sql(sql_us)
+            run_status.rename(columns={'USER_ID': '用户id', 'USER_NAME': '用户', 'RUN_STATUS': '状态'},
+                              inplace=True)
+            my_group.send(run_status)
+            my_group.send("其中，1:跑步状态，2:临时观众，3:长期观众")
+
+        # 申请加入白名单
+        elif inform[0].lower() == 'addw':
+
+            sql_user = "select * from runner_members t where t.user_name = '" + msg.member.name + "'"
+            print (sql_user)
+            uid = read_from_sql(sql_user)['USER_ID'][0]
+            uname = read_from_sql(sql_user)['USER_NAME'][0]
+            print(uid)
+            sql_check = "update runner_members m set m.RUN_STATUS = 2 where m.USER_ID = " + str(uid)
+            res = update_to_sql(sql_check)
+            if res == "0":
+                my_group.send("该用户" + str(uname) + "不存在，请检查数据库！！")
+            print(sql_check)
+            my_group.send("该用户" + str(uname) + "本周被列入临时观众席！")
         else:
             my_group.send("无法识别输入的指令！")
-            my_group.send("添加跑步记录请输入：@杨超越 add 公里数 配速，如@杨超越 add 5 0630 "+'\n'+"查看跑步记录请输入：@杨超越 vi")
+            my_group.send("添加跑步记录请输入：@杨超越 add 公里数 配速，如@杨超越 add 5 0630 "+'\n'+"查看跑步记录请输入：@杨超越 vi"
+                          + '\n' + "查看群成员本周状态请输入：@杨超越 us"+ '\n' + "添加成员到白名单：@杨超越 addw")
             return
 
 
