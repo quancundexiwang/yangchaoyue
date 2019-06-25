@@ -211,7 +211,7 @@ def print_msg(msg):
                     # # 审核通过同时更新目标记录表的实际跑步距离
                     # tar_update = "update runner_target t set t.distance_actually = t.distance_actually " \
                     #              "+"+str(detail_pass['距离'][0])+" where t.target_id = " \
-                    #              "(select d.target_id from runner_detail d where d.record_id = "+str(order[i])
+                    #              "(select d.target_id from runner_detail d where d.record_id = "+str(order[i])+ ")"
                     # print(tar_update)
                     # update_to_sql(tar_update)
                     #
@@ -229,40 +229,45 @@ def print_msg(msg):
             print(msg.text)
             order = msg.text.split(' ')
             for i in range(1, len(order)):
-                sql_check = "update runner_detail d set d.record_status = 3 where d.record_id = " + str(order[i])
-                res = update_to_sql(sql_check)
-                print(sql_check)
-                # '0'为审核失败，检查输入的序号
-                m = 0
-                if res == '0':
-                    my_friend.send("该记录不存在! 请检查！" + str(order[i]))
+                check_status = "select record_status from runner_detail where d.record_id = " + str(order[i])
+                if read_from_sql(check_status)['record_status'][0] != '3':
+                    sql_check = "update runner_detail d set d.record_status = 3 where d.record_id = " + str(order[i])
+                    res = update_to_sql(sql_check)
+                    print(sql_check)
+                    # '0'为审核失败，检查输入的序号
+                    m = 0
+                    if res == '0':
+                        my_friend.send("该记录不存在! 请检查！" + str(order[i]))
+                    else:
+                        m = m + 1
+                        sql_select = "select m.USER_NAME, d.RUN_DISTANCE, date_format(d.DATE_CREATED,'%m-%d %H:%i') as DATE_CREATED, " \
+                                     "t.USER_ID from runner_detail d " \
+                                     "inner join runner_target t on d.target_id = t.target_id inner join " \
+                                     "runner_members m on t.user_id = m.user_id where d.record_id = " + str(order[i])
+                        detail = read_from_sql(sql_select)
+                        detail['RUN_DISTANCE'] = [round(x, 2) for x in detail['RUN_DISTANCE']]
+                        # print(sql_select)
+                        detail_pass = detail[['USER_NAME', 'RUN_DISTANCE', 'DATE_CREATED']].rename(columns={
+                            'USER_NAME': '用户', 'RUN_DISTANCE': '距离', 'DATE_CREATED': '记录时间'})
+                        my_group.send(detail_pass)
+                        my_group.send("以上记录管理员审核未通过")
+
+                        # 审核通过同时更新目标记录表的实际跑步距离
+                        tar_update = "update runner_target t set t.distance_actually = t.distance_actually " \
+                                     "-" + str(detail_pass['距离'][0])+" where t.target_id = " \
+                                     "(select d.target_id from runner_detail d where d.record_id = "+str(order[i])+ ")"
+                        print(tar_update)
+                        update_to_sql(tar_update)
+
+                        # 检查是否需要修改完成状态
+                        comp_update = "update runner_target t set t.completed_status = 1 where t.is_last = 1 and " \
+                                      "t.completed_status = 0 and t.distance_actually >= t.distance_target " \
+                                      "and t.user_id = "+str(detail['USER_ID'][0])
+                        print(comp_update)
+                        update_to_sql(comp_update)
                 else:
-                    m = m + 1
-                    sql_select = "select m.USER_NAME, d.RUN_DISTANCE, date_format(d.DATE_CREATED,'%m-%d %H:%i') as DATE_CREATED, " \
-                                 "t.USER_ID from runner_detail d " \
-                                 "inner join runner_target t on d.target_id = t.target_id inner join " \
-                                 "runner_members m on t.user_id = m.user_id where d.record_id = " + str(order[i])
-                    detail = read_from_sql(sql_select)
-                    detail['RUN_DISTANCE'] = [round(x, 2) for x in detail['RUN_DISTANCE']]
-                    # print(sql_select)
-                    detail_pass = detail[['USER_NAME', 'RUN_DISTANCE', 'DATE_CREATED']].rename(columns={
-                        'USER_NAME': '用户', 'RUN_DISTANCE': '距离', 'DATE_CREATED': '记录时间'})
-                    my_group.send(detail_pass)
-                    my_group.send("以上记录管理员审核未通过")
+                    my_friend.send("该记录状态已为不通过，无法重复修改！记录ID为：" + str(order[i]))
 
-                    # 审核通过同时更新目标记录表的实际跑步距离
-                    tar_update = "update runner_target t set t.distance_actually = t.distance_actually " \
-                                 "-"+str(detail_pass['距离'][0])+" where t.target_id = " \
-                                 "(select d.target_id from runner_detail d where d.record_id = "+str(order[i])
-                    print(tar_update)
-                    update_to_sql(tar_update)
-
-                    # 检查是否需要修改完成状态
-                    comp_update = "update runner_target t set t.completed_status = 1 where t.is_last = 1 and " \
-                                  "t.completed_status = 0 and t.distance_actually >= t.distance_target " \
-                                  "and t.user_id = "+str(detail['USER_ID'][0])
-                    print(comp_update)
-                    update_to_sql(comp_update)
             my_friend.send(str(m) + "条记录审核不通过！")
 
         # # 管理员查看本周用户状态
