@@ -229,7 +229,7 @@ def print_msg(msg):
             print(msg.text)
             order = msg.text.split(' ')
             for i in range(1, len(order)):
-                check_status = "select record_status from runner_detail where d.record_id = " + str(order[i])
+                check_status = "select record_status from runner_detail where record_id = " + str(order[i])
                 if read_from_sql(check_status)['record_status'][0] != '3':
                     sql_check = "update runner_detail d set d.record_status = 3 where d.record_id = " + str(order[i])
                     res = update_to_sql(sql_check)
