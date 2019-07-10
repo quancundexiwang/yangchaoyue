@@ -359,7 +359,7 @@ def print_msg(msg):
                     sql_target = 'select * from runner_target t where t.is_last = 1 and t.user_id = '+str(uid)
                     print(sql_target)
                     tid = read_from_sql(sql_target)['TARGET_ID'][0]
-                    sql = 'insert into runner_detail (RECORD_STATUS，USER_ID,TARGET_ID,RUN_DISTANCE,RUN_SPEED) ' \
+                    sql = 'insert into runner_detail (RECORD_STATUS,USER_ID,TARGET_ID,RUN_DISTANCE,RUN_SPEED) ' \
                           'values ("2",'+str(uid)+','+str(tid)+',' + inform[1]+','+inform[2]+')'
                     print (sql)
                     insert_to_sql(sql)
