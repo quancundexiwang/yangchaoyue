@@ -5,6 +5,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import os
 import configparser
 from mysql_test import insert_to_sql,update_to_sql,read_from_sql,this_mon
+import requests, json
 
 
 # 获取文件的当前路径（绝对路径）
