@@ -151,6 +151,36 @@ except SystemExit:
 print("lalallalalallallalallal!")
 
 
+# 图灵机器人api接口
+def get_response(info):
+    api_url = 'http://openapi.tuling123.com/openapi/api/v2'
+    # 接口请求数据
+    data = {
+                "reqType": 0,
+                "perception": {
+                    "inputText": {
+                        "text": str(info)
+                    },
+                },
+                "userInfo": {
+                    "apiKey": "5bfd1c951a7b4750b865f2f53193279c",
+                    "userId": "ycy"
+                }
+            }
+    # 头文件
+    # headers = {
+    #     'Content-Type':'application/json',
+    #     'Host':'openapi.tuling123.com',
+    #     'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.157 Safari/537.36'
+    # }
+    try:
+        r = requests.post(api_url, data=json.dumps(data)).json()  # 把收到的微信消息发送给图灵机器人
+        return r['results'][0]['values']['text']  # 返回图灵机器人说的消息，我的微信号只是个搬运工
+         #return r.get('text')
+    except:
+        return
+
+
 # 接收群消息
 @bot.register([my_friend, my_group], TEXT, except_self=False)
 def print_msg(msg):
@@ -418,12 +448,34 @@ def print_msg(msg):
                 my_group.send("该用户" + str(uname) + "不存在，请检查数据库！！")
             print(sql_check)
             my_group.send("该用户" + str(uname) + "本周被列入临时观众席！")
-        else:
-            my_group.send("无法识别输入的指令！")
+
+        # 查看本周已完成情况
+        elif inform[0].lower() == 'vs':
+            # 将本周已完成情况发群里
+            sql_vi = "select m.USER_NAME, t.DISTANCE_TARGET, t.DISTANCE_ACTUALLY, t.RUN_WEEK from runner_target t  " \
+                     "inner join runner_members m on t.user_id = m.user_id where t.is_last=1 and m.RUN_STATUS = 1;"
+            detail = read_from_sql(sql_vi)
+            detail['DISTANCE_ACTUALLY'] = [round(x, 2) for x in detail['DISTANCE_ACTUALLY']]
+            print(detail)
+            detail.rename(
+                columns={'USER_NAME': '用户', 'DISTANCE_TARGET': '目标距离', 'DISTANCE_ACTUALLY': '实际距离', 'RUN_WEEK': '跑步周'},
+                inplace=True)
+            if detail['实际距离'].sum() == 0:
+                my_group.send("到现在还没人跑呀！快去跑步啦！")
+            else:
+                my_group.send("本周跑步完成情况如下：")
+                my_group.send(detail)
+
+        # 指令集
+        elif inform[0].lower() == 'll':
+            # my_group.send("无法识别输入的指令！")
             my_group.send("添加跑步记录请输入：@杨超越 add 公里数 配速，如@杨超越 add 5 0630 "+'\n'+"查看跑步记录请输入：@杨超越 vi"
                           + '\n' + "查看群成员本周状态请输入：@杨超越 us"+ '\n' + "添加成员到白名单：@杨超越 addw")
-            return
-
-
+        # 调用图灵机器人
+        else:
+            info = msg.text.split('\u2005')[1:]
+            print(info)
+            reply = get_response(info[0])
+            my_group.send(reply)
 # 堵塞进程，直到结束消息监听 (例如，机器人被登出时)
 bot.join()
